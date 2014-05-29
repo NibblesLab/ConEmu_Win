@@ -741,6 +741,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		break;
 
 	case WM_LBUTTONDOWN:
+	case WM_LBUTTONDBLCLK:
 		if (!MouseOn)
 		{
 			MouseOn = TRUE;
@@ -770,6 +771,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		break;
 
 	case WM_RBUTTONDOWN:
+	case WM_RBUTTONDBLCLK:
 		if (MouseOn)
 		{
 			RBTN = 0x02;
@@ -816,6 +818,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				y = 205 - y;
 				Op_Y = 0x40;
 			}
+			if (L200) y /= 2;
 			SetCursorPos(cp.x, cp.y);
 			TxData[0] = 0xC9; TxData[1] = Op_X + Op_Y + RBTN + LBTN; TxData[2] = x; TxData[3] = y;
 			FT_Write(ftHandle, TxData, 4, &BytesWritten);
