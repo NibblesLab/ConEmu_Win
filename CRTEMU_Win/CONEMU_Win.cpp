@@ -105,6 +105,7 @@ DWORD CALLBACK		GetUSB(void *);
 void				reallocDIB();
 DWORD				ConvPixel();
 void				MenuUnchecked(BYTE);
+bool				MakeIniFileName(TCHAR *ini_fname, TCHAR *ini_fullpath);
 
 int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
@@ -118,6 +119,7 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 	//HACCEL hAccelTable;
 	int bnum;
 	RECT screen;
+	TCHAR ini_fname[256];
 
 	// グローバル文字列を初期化しています。
 	LoadString(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -130,6 +132,31 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 	screen.right = 650;
 	screen.top = 0;
 	screen.bottom = 399;
+
+	// ini ファイルから設定を読む
+	if (MakeIniFileName(_T("CONEMU.ini"), ini_fname)) {
+		int value;
+		value = GetPrivateProfileInt(_T("FRAMERATE"), _T("FPS"), 7, ini_fname);
+		switch (value)
+		{
+		case 60:
+			FPSmode = FPS60;
+			break;
+		case 30:
+			FPSmode = FPS30;
+			break;
+		case 15:
+			FPSmode = FPS15;
+			break;
+		default:
+			FPSmode = FPS07;
+			break;
+		}
+		Offset_X2 = GetPrivateProfileInt(_T("200LINES"), _T("OFFSET_X"), 20, ini_fname);
+		Offset_Y2 = GetPrivateProfileInt(_T("200LINES"), _T("OFFSET_Y"), 34, ini_fname);
+		Offset_X4 = GetPrivateProfileInt(_T("400LINES"), _T("OFFSET_X"), 20, ini_fname);
+		Offset_Y4 = GetPrivateProfileInt(_T("400LINES"), _T("OFFSET_Y"), 34, ini_fname);
+	}
 
 	// USB 初期化
 	if (InitUSB()) {
@@ -161,6 +188,37 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 			{
 				// USB 解放
 				TrashUSB();
+
+				// ini ファイルに設定を書き込み
+				if (MakeIniFileName(_T("CONEMU.ini"), ini_fname)) {
+					TCHAR cstr[10];
+					switch (FPSmode)
+					{
+					case FPS60:
+						wsprintf(cstr, _T("60"));
+						break;
+					case FPS30:
+						wsprintf(cstr, _T("30"));
+						break;
+					case FPS15:
+						wsprintf(cstr, _T("15"));
+						break;
+					case FPS07:
+						wsprintf(cstr, _T("07"));
+						break;
+					default:
+						break;
+					}
+					WritePrivateProfileString(_T("FRAMERATE"), _T("FPS"), cstr, ini_fname);
+					wsprintf(cstr, _T("%d"), Offset_X2);
+					WritePrivateProfileString(_T("200LINES"), _T("OFFSET_X"), cstr, ini_fname);
+					wsprintf(cstr, _T("%d"), Offset_Y2);
+					WritePrivateProfileString(_T("200LINES"), _T("OFFSET_Y"), cstr, ini_fname);
+					wsprintf(cstr, _T("%d"), Offset_X4);
+					WritePrivateProfileString(_T("400LINES"), _T("OFFSET_X"), cstr, ini_fname);
+					wsprintf(cstr, _T("%d"), Offset_Y4);
+					WritePrivateProfileString(_T("400LINES"), _T("OFFSET_Y"), cstr, ini_fname);
+				}
 
 				return (int)msg.wParam;
 			}
@@ -288,7 +346,29 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		SendMessage(hStatusBar, SB_SETPARTS, 3, (LPARAM)boxes);
 		// ステータスバーに文字を挿入
 		SendMessage(hStatusBar, SB_SETTEXT, 0 | SBT_NOBORDERS, (LPARAM)_T("ウィンドウ内をクリックしてマウスモード"));
-		SendMessage(hStatusBar, SB_SETTEXT, 1 | SBT_NOBORDERS, (LPARAM)_T("7.5fps"));
+		menuInfo.fMask = MIIM_STATE;
+		menuInfo.fState = MFS_CHECKED;
+		switch (FPSmode)
+		{
+		case FPS60:
+			SetMenuItemInfo(hMenu, IDM_60FPS, FALSE, &menuInfo);
+			SendMessage(hStatusBar, SB_SETTEXT, 1 | SBT_NOBORDERS, (LPARAM)_T("60fps"));
+			break;
+		case FPS30:
+			SetMenuItemInfo(hMenu, IDM_30FPS, FALSE, &menuInfo);
+			SendMessage(hStatusBar, SB_SETTEXT, 1 | SBT_NOBORDERS, (LPARAM)_T("30fps"));
+			break;
+		case FPS15:
+			SetMenuItemInfo(hMenu, IDM_15FPS, FALSE, &menuInfo);
+			SendMessage(hStatusBar, SB_SETTEXT, 1 | SBT_NOBORDERS, (LPARAM)_T("15fps"));
+			break;
+		case FPS07:
+			SetMenuItemInfo(hMenu, IDM_07FPS, FALSE, &menuInfo);
+			SendMessage(hStatusBar, SB_SETTEXT, 1 | SBT_NOBORDERS, (LPARAM)_T("7.5fps"));
+			break;
+		default:
+			break;
+		}
 		SendMessage(hStatusBar, SB_SETTEXT, 2 | SBT_NOBORDERS, (LPARAM)_T(""));
 		SendMessage(hStatusBar, SB_SETTEXT, 3 | SBT_NOBORDERS, (LPARAM)_T(""));
 
@@ -303,6 +383,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		SetEvent(hEvent);
 
 		// 動作開始
+		TxData[0] = 0xC1; TxData[1] = Offset_X2; TxData[2] = Offset_Y2;
+		FT_Write(ftHandle, TxData, 4, &BytesWritten);
+		TxData[0] = 0xC2; TxData[1] = Offset_X4; TxData[2] = Offset_Y4;
+		FT_Write(ftHandle, TxData, 4, &BytesWritten);
 		TxData[0] = 0xC0; TxData[1] = BOXmode | FPSmode;
 		FT_Write(ftHandle, TxData, 4, &BytesWritten);
 		break;
@@ -1114,4 +1198,24 @@ void MenuUnchecked(BYTE FPSmode)
 	default:
 		break;
 	}
+}
+
+// INIファイルの保存先を作成する
+bool MakeIniFileName(TCHAR *ini_fname, TCHAR *ini_fullpath)
+{
+	TCHAR module[_MAX_PATH + 1];
+	TCHAR drive[_MAX_DRIVE];
+	TCHAR dir[_MAX_DIR];
+	bool bRet = false;
+
+	// EXE名込みでフルパスを取得
+	if (GetModuleFileName(NULL, module, sizeof(module)) != 0){
+		_tsplitpath_s(module, drive, _countof(drive), dir, _countof(dir), NULL, 0, NULL, 0);
+
+		// ファイル名を作成
+		wsprintf(ini_fullpath, _T("%s%s%s"), drive, dir, ini_fname);
+		bRet = true;
+	}
+
+	return bRet;
 }
