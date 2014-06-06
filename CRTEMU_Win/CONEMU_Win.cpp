@@ -325,7 +325,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	int wmId, wmEvent;
 	PAINTSTRUCT ps;
 	HDC hdc;
-	BYTE TxData[4] = { 0, 0, 0, 0 };
+	FT_STATUS ftStatus;
+	BYTE TxData[12] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 	DWORD BytesWritten;
 	BOOL Shifted = FALSE;
 	int boxes[] = { 503, 553, 603, -1 };
@@ -383,12 +384,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		SetEvent(hEvent);
 
 		// ìÆçÏäJén
+		Sleep(400);
 		TxData[0] = 0xC1; TxData[1] = Offset_X2; TxData[2] = Offset_Y2;
-		FT_Write(ftHandle, TxData, 4, &BytesWritten);
-		TxData[0] = 0xC2; TxData[1] = Offset_X4; TxData[2] = Offset_Y4;
-		FT_Write(ftHandle, TxData, 4, &BytesWritten);
-		TxData[0] = 0xC0; TxData[1] = BOXmode | FPSmode;
-		FT_Write(ftHandle, TxData, 4, &BytesWritten);
+		TxData[4] = 0xC2; TxData[5] = Offset_X4; TxData[6] = Offset_Y4;
+		TxData[8] = 0xC0; TxData[9] = BOXmode | FPSmode;
+		do
+		{
+			ftStatus = FT_Write(ftHandle, TxData, 12, &BytesWritten);
+		} while (ftStatus != FT_OK);
 		break;
 
 	case WM_COMMAND:
